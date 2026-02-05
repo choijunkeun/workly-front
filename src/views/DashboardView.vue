@@ -1,5 +1,8 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
+import { useAuthStore } from '@/stores/auth'
+
+const authStore = useAuthStore()
 
 const currentWeek = ref('2024년 2월 1주')
 
@@ -14,10 +17,25 @@ const recentReports = ref([
   { date: '1/25', title: '주간보고 승인됨', status: 'approved' }
 ])
 
-const teamProgress = ref([
-  { team: '개발팀', progress: 85 },
-  { team: '기획팀', progress: 70 }
+// Mock 데이터 - 팀별 진척도 (companyId로 구분)
+const allTeamProgress = ref([
+  { companyId: 1, team: '비트맥스', progress: 85 },
+  { companyId: 2, team: '에코', progress: 70 },
+  { companyId: 3, team: '미라콤', progress: 78 },
+  { companyId: 4, team: 'DRCTS', progress: 92 }
 ])
+
+// 표시할 팀 진척도 (관리자: 전체, 팀 대표: 본인 팀만)
+const teamProgress = computed(() => {
+  if (authStore.isAdmin) {
+    // 관리자는 모든 팀 조회 가능
+    return allTeamProgress.value
+  } else if (authStore.isLeader && authStore.member?.companyId) {
+    // 팀 대표는 본인 팀만 조회
+    return allTeamProgress.value.filter(t => t.companyId === authStore.member?.companyId)
+  }
+  return []
+})
 </script>
 
 <template>
@@ -164,11 +182,11 @@ const teamProgress = ref([
       </div>
     </div>
 
-    <!-- 팀 진척도 요약 -->
-    <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/60">
+    <!-- 팀 진척도 요약 (관리자 또는 팀 대표만 표시) -->
+    <div v-if="authStore.canViewTeamProgress" class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/60">
       <h3 class="font-semibold text-slate-800 mb-6 flex items-center gap-2">
         <span class="w-1.5 h-5 bg-primary-500 rounded-full"></span>
-        팀 주간 진척도 요약
+        {{ authStore.isAdmin ? '전체 팀 주간 진척도' : '우리 팀 주간 진척도' }}
       </h3>
       <div class="space-y-5">
         <div v-for="team in teamProgress" :key="team.team" class="group">

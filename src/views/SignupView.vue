@@ -2,7 +2,9 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { IdCard, Lock, Eye, EyeOff, Loader2, CheckCircle } from 'lucide-vue-next'
+import { useToastStore } from '@/stores/toast'
+import { User, Lock, Eye, EyeOff, Loader2, CheckCircle, IdCard } from 'lucide-vue-next'
+import type { MemberType } from '@/types'
 import Card from '@/components/ui/card.vue'
 import CardHeader from '@/components/ui/card-header.vue'
 import CardContent from '@/components/ui/card-content.vue'
@@ -14,16 +16,31 @@ import Label from '@/components/ui/label.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
+const toastStore = useToastStore()
 
 const knoxId = ref('')
+const name = ref('')
 const password = ref('')
+const passwordConfirm = ref('')
+const memberType = ref<MemberType>('employee')
 const isLoading = ref(false)
 const error = ref('')
 const showPassword = ref(false)
+const showPasswordConfirm = ref(false)
 
-async function handleLogin() {
-  if (!knoxId.value || !password.value) {
-    error.value = 'Knox ID와 비밀번호를 입력해주세요.'
+async function handleSignup() {
+  if (!knoxId.value || !name.value || !password.value || !passwordConfirm.value) {
+    error.value = '모든 필드를 입력해주세요.'
+    return
+  }
+
+  if (password.value !== passwordConfirm.value) {
+    error.value = '비밀번호가 일치하지 않습니다.'
+    return
+  }
+
+  if (password.value.length < 4) {
+    error.value = '비밀번호는 4자 이상이어야 합니다.'
     return
   }
 
@@ -31,10 +48,16 @@ async function handleLogin() {
   error.value = ''
 
   try {
-    await authStore.login({ knoxId: knoxId.value, password: password.value })
-    router.push('/')
+    await authStore.signup({
+      knoxId: knoxId.value,
+      name: name.value,
+      password: password.value,
+      type: memberType.value
+    })
+    toastStore.success('회원가입이 완료되었습니다. 관리자 승인 후 로그인 가능합니다.', 5000)
+    router.push('/login')
   } catch (e) {
-    error.value = '로그인에 실패했습니다.'
+    error.value = '회원가입에 실패했습니다.'
   } finally {
     isLoading.value = false
   }
@@ -89,7 +112,7 @@ async function handleLogin() {
       </div>
     </div>
 
-    <!-- 오른쪽: 로그인 폼 -->
+    <!-- 오른쪽: 회원가입 폼 -->
     <div class="flex-1 flex items-center justify-center p-8 bg-muted/30">
       <div class="w-full max-w-[400px]">
         <!-- 모바일 로고 -->
@@ -102,10 +125,10 @@ async function handleLogin() {
         <Card class="border-0 shadow-lg">
           <CardHeader class="space-y-1 pb-4">
             <CardTitle class="text-2xl font-bold text-center">
-              로그인
+              회원가입
             </CardTitle>
             <CardDescription class="text-center">
-              계정에 로그인하여 업무를 시작하세요
+              계정을 생성하여 서비스를 시작하세요
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -120,7 +143,7 @@ async function handleLogin() {
               {{ error }}
             </div>
 
-            <form @submit.prevent="handleLogin" class="space-y-4">
+            <form @submit.prevent="handleSignup" class="space-y-4">
               <!-- Knox ID -->
               <div class="space-y-2">
                 <Label for="knoxId">Knox ID</Label>
@@ -131,6 +154,21 @@ async function handleLogin() {
                     v-model="knoxId"
                     type="text"
                     placeholder="Knox ID를 입력하세요"
+                    class="pl-10"
+                  />
+                </div>
+              </div>
+
+              <!-- 이름 -->
+              <div class="space-y-2">
+                <Label for="name">이름</Label>
+                <div class="relative">
+                  <User class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    id="name"
+                    v-model="name"
+                    type="text"
+                    placeholder="이름을 입력하세요"
                     class="pl-10"
                   />
                 </div>
@@ -159,21 +197,61 @@ async function handleLogin() {
                 </div>
               </div>
 
-              <!-- 옵션 -->
-              <div class="flex items-center justify-between text-sm">
-                <label class="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    class="w-4 h-4 rounded border-input text-primary focus:ring-primary/20"
+              <!-- 비밀번호 확인 -->
+              <div class="space-y-2">
+                <Label for="passwordConfirm">비밀번호 확인</Label>
+                <div class="relative">
+                  <Lock class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    id="passwordConfirm"
+                    v-model="passwordConfirm"
+                    :type="showPasswordConfirm ? 'text' : 'password'"
+                    placeholder="비밀번호를 다시 입력하세요"
+                    class="pl-10 pr-10"
                   />
-                  <span class="text-muted-foreground">로그인 상태 유지</span>
-                </label>
-                <a href="#" class="text-primary hover:underline">
-                  비밀번호 찾기
-                </a>
+                  <button
+                    type="button"
+                    @click="showPasswordConfirm = !showPasswordConfirm"
+                    class="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <EyeOff v-if="showPasswordConfirm" class="w-4 h-4" />
+                    <Eye v-else class="w-4 h-4" />
+                  </button>
+                </div>
               </div>
 
-              <!-- 로그인 버튼 -->
+              <!-- 사용자 타입 -->
+              <div class="space-y-2">
+                <Label>사용자 유형</Label>
+                <div class="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    @click="memberType = 'employee'"
+                    :class="[
+                      'p-3 rounded-lg border-2 text-sm font-medium transition-all',
+                      memberType === 'employee'
+                        ? 'border-primary bg-primary/5 text-primary'
+                        : 'border-input hover:border-primary/50 text-muted-foreground'
+                    ]"
+                  >
+                    임직원
+                  </button>
+                  <button
+                    type="button"
+                    @click="memberType = 'partner'"
+                    :class="[
+                      'p-3 rounded-lg border-2 text-sm font-medium transition-all',
+                      memberType === 'partner'
+                        ? 'border-primary bg-primary/5 text-primary'
+                        : 'border-input hover:border-primary/50 text-muted-foreground'
+                    ]"
+                  >
+                    협력직
+                  </button>
+                </div>
+              </div>
+
+              <!-- 회원가입 버튼 -->
               <Button
                 type="submit"
                 :loading="isLoading"
@@ -181,22 +259,22 @@ async function handleLogin() {
                 class="w-full h-11"
               >
                 <Loader2 v-if="isLoading" class="w-4 h-4 animate-spin" />
-                {{ isLoading ? '로그인 중...' : '로그인' }}
+                {{ isLoading ? '가입 중...' : '회원가입' }}
               </Button>
             </form>
 
-            <!-- 회원가입 -->
+            <!-- 로그인 링크 -->
             <p class="mt-6 text-center text-sm text-muted-foreground">
-              아직 계정이 없으신가요?
-              <router-link to="/signup" class="text-primary font-medium hover:underline">
-                회원가입
+              이미 계정이 있으신가요?
+              <router-link to="/login" class="text-primary font-medium hover:underline">
+                로그인
               </router-link>
             </p>
           </CardContent>
         </Card>
 
         <p class="mt-6 text-center text-xs text-muted-foreground">
-          로그인 시 서비스 이용약관 및 개인정보 처리방침에 동의하게 됩니다.
+          회원가입 시 서비스 이용약관 및 개인정보 처리방침에 동의하게 됩니다.
         </p>
       </div>
     </div>

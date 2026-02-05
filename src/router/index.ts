@@ -9,6 +9,12 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: false }
   },
   {
+    path: '/signup',
+    name: 'Signup',
+    component: () => import('@/views/SignupView.vue'),
+    meta: { requiresAuth: false }
+  },
+  {
     path: '/',
     component: () => import('@/layouts/MainLayout.vue'),
     meta: { requiresAuth: true },
@@ -42,6 +48,11 @@ const routes: RouteRecordRaw[] = [
         path: 'team-progress',
         name: 'TeamProgress',
         component: () => import('@/views/TeamProgressView.vue')
+      },
+      {
+        path: 'systems',
+        name: 'Systems',
+        component: () => import('@/views/SystemView.vue')
       }
     ]
   },
@@ -58,11 +69,11 @@ const router = createRouter({
 
 // 인증 가드
 router.beforeEach((to, _from, next) => {
-  const isAuthenticated = localStorage.getItem('token')
+  const isAuthenticated = localStorage.getItem('accessToken')
 
   if (to.meta.requiresAuth && !isAuthenticated) {
     next('/login')
-  } else if (to.path === '/login' && isAuthenticated) {
+  } else if ((to.path === '/login' || to.path === '/signup') && isAuthenticated) {
     next('/')
   } else {
     next()

@@ -64,7 +64,7 @@ function getStatusClass(status: string) {
   <div>
     <!-- 헤더 -->
     <div class="flex items-center justify-between mb-6">
-      <h2 class="text-2xl font-bold text-slate-800">주간보고</h2>
+      <h2 class="text-2xl font-bold text-slate-800">내 주간보고</h2>
       <router-link
         to="/reports/new"
         class="px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors"

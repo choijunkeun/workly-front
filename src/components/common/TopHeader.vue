@@ -1,16 +1,84 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import type { User } from '@/types'
+import type { Member } from '@/types'
+import { useAuthStore } from '@/stores/auth'
+import { useToastStore } from '@/stores/toast'
+import { Lock, Eye, EyeOff, X, Loader2 } from 'lucide-vue-next'
 
 defineProps<{
-  user: User | null
+  user: Member | null
 }>()
 
 const emit = defineEmits<{
   logout: []
 }>()
 
+const authStore = useAuthStore()
+const toastStore = useToastStore()
+
 const showProfileMenu = ref(false)
+const showPasswordModal = ref(false)
+
+// 비밀번호 변경 폼
+const currentPassword = ref('')
+const newPassword = ref('')
+const newPasswordConfirm = ref('')
+const showCurrentPassword = ref(false)
+const showNewPassword = ref(false)
+const showNewPasswordConfirm = ref(false)
+const isChangingPassword = ref(false)
+const passwordError = ref('')
+
+function openPasswordModal() {
+  showProfileMenu.value = false
+  showPasswordModal.value = true
+  resetPasswordForm()
+}
+
+function closePasswordModal() {
+  showPasswordModal.value = false
+  resetPasswordForm()
+}
+
+function resetPasswordForm() {
+  currentPassword.value = ''
+  newPassword.value = ''
+  newPasswordConfirm.value = ''
+  showCurrentPassword.value = false
+  showNewPassword.value = false
+  showNewPasswordConfirm.value = false
+  passwordError.value = ''
+}
+
+async function handleChangePassword() {
+  if (!currentPassword.value || !newPassword.value || !newPasswordConfirm.value) {
+    passwordError.value = '모든 필드를 입력해주세요.'
+    return
+  }
+
+  if (newPassword.value.length < 4) {
+    passwordError.value = '새 비밀번호는 4자 이상이어야 합니다.'
+    return
+  }
+
+  if (newPassword.value !== newPasswordConfirm.value) {
+    passwordError.value = '새 비밀번호가 일치하지 않습니다.'
+    return
+  }
+
+  isChangingPassword.value = true
+  passwordError.value = ''
+
+  try {
+    await authStore.changePassword(currentPassword.value, newPassword.value)
+    toastStore.success('비밀번호가 변경되었습니다.')
+    closePasswordModal()
+  } catch (e) {
+    passwordError.value = '비밀번호 변경에 실패했습니다.'
+  } finally {
+    isChangingPassword.value = false
+  }
+}
 </script>
 
 <template>
@@ -52,7 +120,7 @@ const showProfileMenu = ref(false)
             </div>
             <div class="text-left hidden sm:block">
               <p class="text-sm font-medium text-slate-700">{{ user?.name || '사용자' }}</p>
-              <p class="text-xs text-slate-400">{{ user?.team || '' }}</p>
+              <p class="text-xs text-slate-400">{{ user?.type === 'employee' ? '임직원' : user?.type === 'partner' ? '협력직' : '' }}</p>
             </div>
             <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
@@ -74,9 +142,16 @@ const showProfileMenu = ref(false)
             >
               <div class="px-4 py-3 border-b border-slate-100">
                 <p class="text-sm font-semibold text-slate-800">{{ user?.name }}</p>
-                <p class="text-xs text-slate-500 mt-0.5">{{ user?.email || user?.team }}</p>
+                <p class="text-xs text-slate-500 mt-0.5">{{ user?.knoxId }}</p>
               </div>
               <div class="py-1">
+                <button
+                  @click="openPasswordModal"
+                  class="w-full px-4 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2"
+                >
+                  <Lock class="w-4 h-4" />
+                  비밀번호 변경
+                </button>
                 <button
                   @click="emit('logout')"
                   class="w-full px-4 py-2.5 text-left text-sm text-red-600 hover:bg-red-50 transition-colors flex items-center gap-2"
@@ -93,4 +168,142 @@ const showProfileMenu = ref(false)
       </div>
     </div>
   </header>
+
+  <!-- 비밀번호 변경 모달 -->
+  <Teleport to="body">
+    <Transition
+      enter-active-class="transition ease-out duration-200"
+      enter-from-class="opacity-0"
+      enter-to-class="opacity-100"
+      leave-active-class="transition ease-in duration-150"
+      leave-from-class="opacity-100"
+      leave-to-class="opacity-0"
+    >
+      <div
+        v-if="showPasswordModal"
+        class="fixed inset-0 z-[100] flex items-center justify-center"
+      >
+        <!-- 배경 오버레이 -->
+        <div
+          class="absolute inset-0 bg-black/50"
+          @click="closePasswordModal"
+        ></div>
+
+        <!-- 모달 컨텐츠 -->
+        <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
+          <!-- 헤더 -->
+          <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+            <h2 class="text-lg font-semibold text-slate-800">비밀번호 변경</h2>
+            <button
+              @click="closePasswordModal"
+              class="p-1 rounded-lg hover:bg-slate-100 transition-colors"
+            >
+              <X class="w-5 h-5 text-slate-500" />
+            </button>
+          </div>
+
+          <!-- 바디 -->
+          <div class="px-6 py-4">
+            <!-- 에러 메시지 -->
+            <div
+              v-if="passwordError"
+              class="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-sm text-red-600"
+            >
+              <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              {{ passwordError }}
+            </div>
+
+            <form @submit.prevent="handleChangePassword" class="space-y-4">
+              <!-- 현재 비밀번호 -->
+              <div class="space-y-2">
+                <label class="text-sm font-medium text-slate-700">현재 비밀번호</label>
+                <div class="relative">
+                  <Lock class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input
+                    v-model="currentPassword"
+                    :type="showCurrentPassword ? 'text' : 'password'"
+                    placeholder="현재 비밀번호를 입력하세요"
+                    class="w-full pl-10 pr-10 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors"
+                  />
+                  <button
+                    type="button"
+                    @click="showCurrentPassword = !showCurrentPassword"
+                    class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                  >
+                    <EyeOff v-if="showCurrentPassword" class="w-4 h-4" />
+                    <Eye v-else class="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              <!-- 새 비밀번호 -->
+              <div class="space-y-2">
+                <label class="text-sm font-medium text-slate-700">새 비밀번호</label>
+                <div class="relative">
+                  <Lock class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input
+                    v-model="newPassword"
+                    :type="showNewPassword ? 'text' : 'password'"
+                    placeholder="새 비밀번호를 입력하세요"
+                    class="w-full pl-10 pr-10 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors"
+                  />
+                  <button
+                    type="button"
+                    @click="showNewPassword = !showNewPassword"
+                    class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                  >
+                    <EyeOff v-if="showNewPassword" class="w-4 h-4" />
+                    <Eye v-else class="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              <!-- 새 비밀번호 확인 -->
+              <div class="space-y-2">
+                <label class="text-sm font-medium text-slate-700">새 비밀번호 확인</label>
+                <div class="relative">
+                  <Lock class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input
+                    v-model="newPasswordConfirm"
+                    :type="showNewPasswordConfirm ? 'text' : 'password'"
+                    placeholder="새 비밀번호를 다시 입력하세요"
+                    class="w-full pl-10 pr-10 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors"
+                  />
+                  <button
+                    type="button"
+                    @click="showNewPasswordConfirm = !showNewPasswordConfirm"
+                    class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                  >
+                    <EyeOff v-if="showNewPasswordConfirm" class="w-4 h-4" />
+                    <Eye v-else class="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              <!-- 버튼 -->
+              <div class="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  @click="closePasswordModal"
+                  class="flex-1 px-4 py-2.5 border border-slate-200 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                >
+                  취소
+                </button>
+                <button
+                  type="submit"
+                  :disabled="isChangingPassword"
+                  class="flex-1 px-4 py-2.5 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  <Loader2 v-if="isChangingPassword" class="w-4 h-4 animate-spin" />
+                  {{ isChangingPassword ? '변경 중...' : '변경하기' }}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </Transition>
+  </Teleport>
 </template>

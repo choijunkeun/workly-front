@@ -1,36 +1,156 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import type { Task } from '@/types'
+import { Calendar, ChevronLeft, ChevronRight } from 'lucide-vue-next'
 
 const router = useRouter()
 
-const weekStart = ref('2024-02-05')
-const weekEnd = ref('2024-02-09')
+// 현재 주의 월요일과 일요일 계산
+function getWeekRange(date: Date) {
+  const d = new Date(date)
+  const day = d.getDay()
+  // 월요일로 이동 (일요일이 0이므로 조정 필요)
+  const diffToMonday = day === 0 ? -6 : 1 - day
+  const monday = new Date(d)
+  monday.setDate(d.getDate() + diffToMonday)
+
+  const sunday = new Date(monday)
+  sunday.setDate(monday.getDate() + 6)
+
+  return { monday, sunday }
+}
+
+function formatDate(date: Date) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function formatDisplayDate(dateStr: string) {
+  const date = new Date(dateStr)
+  const month = date.getMonth() + 1
+  const day = date.getDate()
+  const weekday = ['일', '월', '화', '수', '목', '금', '토'][date.getDay()]
+  return `${month}월 ${day}일 (${weekday})`
+}
+
+function getWeekNumber(dateStr: string) {
+  const date = new Date(dateStr)
+  const month = date.getMonth() + 1
+  const firstDayOfMonth = new Date(date.getFullYear(), date.getMonth(), 1)
+  const firstMonday = new Date(firstDayOfMonth)
+  const dayOfWeek = firstDayOfMonth.getDay()
+  // 첫 번째 월요일 찾기
+  const diffToMonday = dayOfWeek === 0 ? 1 : dayOfWeek === 1 ? 0 : 8 - dayOfWeek
+  firstMonday.setDate(1 + diffToMonday)
+
+  // 첫 번째 월요일 이전이면 1주차
+  if (date < firstMonday) {
+    return `${month}월 1주차`
+  }
+
+  // 첫 번째 월요일부터 몇 주차인지 계산
+  const weekNum = Math.ceil((date.getDate() - firstMonday.getDate() + 1) / 7)
+  return `${month}월 ${weekNum}주차`
+}
+
+// 초기 날짜 설정
+const { monday, sunday } = getWeekRange(new Date())
+const weekStart = ref(formatDate(monday))
+const weekEnd = ref(formatDate(sunday))
+
+// 날짜 선택 관련
+const showDatePicker = ref(false)
+const pickerYear = ref(new Date().getFullYear())
+const pickerMonth = ref(new Date().getMonth())
+
+const pickerMonthName = computed(() => {
+  return `${pickerYear.value}년 ${pickerMonth.value + 1}월`
+})
+
+// 달력에 표시할 날짜 생성
+const calendarDays = computed(() => {
+  const firstDay = new Date(pickerYear.value, pickerMonth.value, 1)
+  const lastDay = new Date(pickerYear.value, pickerMonth.value + 1, 0)
+  const startDayOfWeek = firstDay.getDay()
+
+  const days: { date: Date; isCurrentMonth: boolean; isMonday: boolean; isSunday: boolean }[] = []
+
+  // 이전 달의 날짜들
+  const prevMonthLastDay = new Date(pickerYear.value, pickerMonth.value, 0)
+  for (let i = startDayOfWeek - 1; i >= 0; i--) {
+    const date = new Date(pickerYear.value, pickerMonth.value - 1, prevMonthLastDay.getDate() - i)
+    days.push({
+      date,
+      isCurrentMonth: false,
+      isMonday: date.getDay() === 1,
+      isSunday: date.getDay() === 0
+    })
+  }
+
+  // 현재 달의 날짜들
+  for (let i = 1; i <= lastDay.getDate(); i++) {
+    const date = new Date(pickerYear.value, pickerMonth.value, i)
+    days.push({
+      date,
+      isCurrentMonth: true,
+      isMonday: date.getDay() === 1,
+      isSunday: date.getDay() === 0
+    })
+  }
+
+  // 다음 달의 날짜들 (6주 채우기)
+  const remainingDays = 42 - days.length
+  for (let i = 1; i <= remainingDays; i++) {
+    const date = new Date(pickerYear.value, pickerMonth.value + 1, i)
+    days.push({
+      date,
+      isCurrentMonth: false,
+      isMonday: date.getDay() === 1,
+      isSunday: date.getDay() === 0
+    })
+  }
+
+  return days
+})
+
+function prevMonth() {
+  if (pickerMonth.value === 0) {
+    pickerMonth.value = 11
+    pickerYear.value--
+  } else {
+    pickerMonth.value--
+  }
+}
+
+function nextMonth() {
+  if (pickerMonth.value === 11) {
+    pickerMonth.value = 0
+    pickerYear.value++
+  } else {
+    pickerMonth.value++
+  }
+}
+
+function selectWeek(date: Date) {
+  const { monday: newMonday, sunday: newSunday } = getWeekRange(date)
+  weekStart.value = formatDate(newMonday)
+  weekEnd.value = formatDate(newSunday)
+  showDatePicker.value = false
+}
+
+function isInSelectedWeek(date: Date) {
+  const dateStr = formatDate(date)
+  return dateStr >= weekStart.value && dateStr <= weekEnd.value
+}
+
 const goals = ref('')
 const issues = ref('')
 const nextWeekPlan = ref('')
 
-const tasks = ref<Task[]>([
-  {
-    id: 1,
-    title: 'API 개발',
-    category: '개발',
-    priority: 'high',
-    status: 'in_progress',
-    progress: 80,
-    dueDate: '2024-02-07'
-  },
-  {
-    id: 2,
-    title: '문서화 작업',
-    category: '문서',
-    priority: 'medium',
-    status: 'in_progress',
-    progress: 50,
-    dueDate: '2024-02-09'
-  }
-])
+const tasks = ref<Task[]>([])
 
 const showTaskModal = ref(false)
 const newTask = ref({
@@ -42,6 +162,8 @@ const newTask = ref({
 })
 
 function addTask() {
+  if (!newTask.value.title.trim()) return
+
   tasks.value.push({
     id: Date.now(),
     title: newTask.value.title,
@@ -90,6 +212,13 @@ function getPriorityLabel(priority: string) {
   }
   return labels[priority] || priority
 }
+
+onMounted(() => {
+  // 날짜 선택기 초기 월 설정
+  const startDate = new Date(weekStart.value)
+  pickerYear.value = startDate.getFullYear()
+  pickerMonth.value = startDate.getMonth()
+})
 </script>
 
 <template>
@@ -113,11 +242,98 @@ function getPriorityLabel(priority: string) {
       </div>
     </div>
 
-    <!-- 기간 -->
+    <!-- 기간 설정 -->
     <div class="bg-white rounded-xl p-6 shadow-sm border border-slate-200 mb-6">
-      <p class="text-slate-600">
-        기간: <span class="font-medium text-slate-800">{{ weekStart }} ~ {{ weekEnd }}</span>
-      </p>
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="text-sm text-slate-500 mb-1">보고 기간</p>
+          <div class="flex items-center gap-2">
+            <span class="text-lg font-semibold text-primary-600">{{ getWeekNumber(weekStart) }}</span>
+            <span class="text-slate-400">|</span>
+            <span class="text-slate-700">{{ formatDisplayDate(weekStart) }} ~ {{ formatDisplayDate(weekEnd) }}</span>
+          </div>
+        </div>
+        <div class="relative">
+          <button
+            @click="showDatePicker = !showDatePicker"
+            class="flex items-center gap-2 px-4 py-2 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+          >
+            <Calendar class="w-4 h-4 text-slate-500" />
+            <span class="text-sm text-slate-700">기간 변경</span>
+          </button>
+
+          <!-- 날짜 선택기 -->
+          <Transition
+            enter-active-class="transition ease-out duration-200"
+            enter-from-class="opacity-0 translate-y-1"
+            enter-to-class="opacity-100 translate-y-0"
+            leave-active-class="transition ease-in duration-150"
+            leave-from-class="opacity-100 translate-y-0"
+            leave-to-class="opacity-0 translate-y-1"
+          >
+            <div
+              v-if="showDatePicker"
+              class="absolute right-0 mt-2 bg-white rounded-xl shadow-xl border border-slate-200 p-4 z-50 w-[320px]"
+            >
+              <p class="text-xs text-slate-500 mb-3">원하는 주를 클릭하여 선택하세요 (월~일)</p>
+
+              <!-- 월 네비게이션 -->
+              <div class="flex items-center justify-between mb-4">
+                <button
+                  @click="prevMonth"
+                  class="p-1 rounded hover:bg-slate-100 transition-colors"
+                >
+                  <ChevronLeft class="w-5 h-5 text-slate-600" />
+                </button>
+                <span class="font-medium text-slate-800">{{ pickerMonthName }}</span>
+                <button
+                  @click="nextMonth"
+                  class="p-1 rounded hover:bg-slate-100 transition-colors"
+                >
+                  <ChevronRight class="w-5 h-5 text-slate-600" />
+                </button>
+              </div>
+
+              <!-- 요일 헤더 -->
+              <div class="grid grid-cols-7 gap-1 mb-2">
+                <div
+                  v-for="day in ['일', '월', '화', '수', '목', '금', '토']"
+                  :key="day"
+                  class="text-center text-xs font-medium py-1"
+                  :class="day === '일' ? 'text-red-500' : day === '토' ? 'text-blue-500' : 'text-slate-500'"
+                >
+                  {{ day }}
+                </div>
+              </div>
+
+              <!-- 날짜 그리드 -->
+              <div class="grid grid-cols-7 gap-1">
+                <button
+                  v-for="(dayInfo, index) in calendarDays"
+                  :key="index"
+                  @click="selectWeek(dayInfo.date)"
+                  class="relative h-8 text-sm rounded transition-colors"
+                  :class="[
+                    !dayInfo.isCurrentMonth ? 'text-slate-300' : 'text-slate-700',
+                    isInSelectedWeek(dayInfo.date) ? 'bg-primary-100 text-primary-700 font-medium' : 'hover:bg-slate-100',
+                    dayInfo.isMonday && isInSelectedWeek(dayInfo.date) ? 'rounded-l-lg' : '',
+                    dayInfo.isSunday && isInSelectedWeek(dayInfo.date) ? 'rounded-r-lg' : ''
+                  ]"
+                >
+                  {{ dayInfo.date.getDate() }}
+                </button>
+              </div>
+
+              <!-- 선택된 기간 표시 -->
+              <div class="mt-4 pt-3 border-t border-slate-100">
+                <p class="text-sm text-slate-600">
+                  선택: <span class="font-medium text-primary-600">{{ getWeekNumber(weekStart) }}</span>
+                </p>
+              </div>
+            </div>
+          </Transition>
+        </div>
+      </div>
     </div>
 
     <!-- 금주 업무 목표 -->
@@ -143,8 +359,14 @@ function getPriorityLabel(priority: string) {
         </button>
       </div>
 
+      <!-- 업무가 없을 때 -->
+      <div v-if="tasks.length === 0" class="text-center py-12 text-slate-400">
+        <p>등록된 업무가 없습니다.</p>
+        <p class="text-sm mt-1">위의 '업무 추가' 버튼을 클릭하여 업무를 추가하세요.</p>
+      </div>
+
       <!-- 업무 테이블 -->
-      <div class="overflow-x-auto">
+      <div v-else class="overflow-x-auto">
         <table class="w-full">
           <thead>
             <tr class="border-b border-slate-200">
