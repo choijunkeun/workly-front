@@ -2,9 +2,11 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import type { Task } from '@/types'
-import { Calendar, ChevronLeft, ChevronRight } from 'lucide-vue-next'
+import { Calendar, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-vue-next'
+import { useAdminStore } from '@/stores/admin'
 
 const router = useRouter()
+const adminStore = useAdminStore()
 
 // 현재 주의 월요일과 일요일 계산
 function getWeekRange(date: Date) {
@@ -154,26 +156,41 @@ const tasks = ref<Task[]>([])
 
 const showTaskModal = ref(false)
 const newTask = ref({
+  systemId: undefined as number | undefined,
   title: '',
-  category: '개발',
+  category: '원콜',
   priority: 'medium' as 'high' | 'medium' | 'low',
-  estimatedHours: 0,
+  requester: '',
+  requestDate: '',
+  dueDate: '',
   description: ''
+})
+
+// 선택된 시스템 정보
+const selectedSystem = computed(() => {
+  if (!newTask.value.systemId) return null
+  return adminStore.systems.find(s => s.id === newTask.value.systemId)
 })
 
 function addTask() {
   if (!newTask.value.title.trim()) return
+  if (!newTask.value.systemId) {
+    alert('시스템을 선택해주세요.')
+    return
+  }
 
   tasks.value.push({
     id: Date.now(),
+    systemId: newTask.value.systemId,
     title: newTask.value.title,
     category: newTask.value.category,
     priority: newTask.value.priority,
     status: 'pending',
     progress: 0,
-    dueDate: weekEnd.value,
-    description: newTask.value.description,
-    estimatedHours: newTask.value.estimatedHours
+    requester: newTask.value.requester,
+    requestDate: newTask.value.requestDate,
+    dueDate: newTask.value.dueDate || weekEnd.value,
+    description: newTask.value.description
   })
   showTaskModal.value = false
   resetNewTask()
@@ -181,12 +198,21 @@ function addTask() {
 
 function resetNewTask() {
   newTask.value = {
+    systemId: undefined,
     title: '',
-    category: '개발',
+    category: '원콜',
     priority: 'medium',
-    estimatedHours: 0,
+    requester: '',
+    requestDate: '',
+    dueDate: '',
     description: ''
   }
+}
+
+// 시스템 정보 가져오기
+function getSystemInfo(systemId?: number) {
+  if (!systemId) return null
+  return adminStore.systems.find(s => s.id === systemId)
 }
 
 function removeTask(id: number) {
@@ -202,15 +228,6 @@ function submitReport() {
   console.log('제출')
   alert('제출되었습니다.')
   router.push('/reports')
-}
-
-function getPriorityLabel(priority: string) {
-  const labels: Record<string, string> = {
-    high: '높음',
-    medium: '보통',
-    low: '낮음'
-  }
-  return labels[priority] || priority
 }
 
 onMounted(() => {
@@ -370,15 +387,34 @@ onMounted(() => {
         <table class="w-full">
           <thead>
             <tr class="border-b border-slate-200">
-              <th class="px-4 py-3 text-left text-sm font-medium text-slate-500">상태</th>
+              <th class="px-4 py-3 text-left text-sm font-medium text-slate-500">시스템</th>
               <th class="px-4 py-3 text-left text-sm font-medium text-slate-500">업무명</th>
-              <th class="px-4 py-3 text-left text-sm font-medium text-slate-500">우선순위</th>
+              <th class="px-4 py-3 text-left text-sm font-medium text-slate-500">카테고리</th>
+              <th class="px-4 py-3 text-left text-sm font-medium text-slate-500">상태</th>
               <th class="px-4 py-3 text-left text-sm font-medium text-slate-500">진척도</th>
+              <th class="px-4 py-3 text-left text-sm font-medium text-slate-500">납기일</th>
               <th class="px-4 py-3"></th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100">
             <tr v-for="task in tasks" :key="task.id">
+              <td class="px-4 py-3">
+                <div v-if="getSystemInfo(task.systemId)" class="flex flex-col gap-0.5">
+                  <span class="px-1.5 py-0.5 bg-slate-100 text-slate-600 text-xs font-mono rounded w-fit">
+                    {{ getSystemInfo(task.systemId)?.systemCode }}
+                  </span>
+                  <span class="text-xs text-slate-500">{{ getSystemInfo(task.systemId)?.name }}</span>
+                </div>
+                <span v-else class="text-sm text-slate-400">-</span>
+              </td>
+              <td class="px-4 py-3">
+                <span class="text-sm text-slate-800">{{ task.title }}</span>
+              </td>
+              <td class="px-4 py-3">
+                <span class="px-2 py-0.5 text-xs bg-blue-50 text-blue-700 rounded">
+                  {{ task.category }}
+                </span>
+              </td>
               <td class="px-4 py-3">
                 <select
                   v-model="task.status"
@@ -391,31 +427,19 @@ onMounted(() => {
                 </select>
               </td>
               <td class="px-4 py-3">
-                <span class="text-sm text-slate-800">{{ task.title }}</span>
-              </td>
-              <td class="px-4 py-3">
-                <span
-                  class="px-2 py-1 text-xs rounded-full"
-                  :class="{
-                    'bg-red-100 text-red-600': task.priority === 'high',
-                    'bg-amber-100 text-amber-600': task.priority === 'medium',
-                    'bg-slate-100 text-slate-600': task.priority === 'low'
-                  }"
-                >
-                  {{ getPriorityLabel(task.priority) }}
-                </span>
-              </td>
-              <td class="px-4 py-3">
                 <div class="flex items-center gap-2">
                   <input
                     v-model="task.progress"
                     type="range"
                     min="0"
                     max="100"
-                    class="w-24"
+                    class="w-20"
                   />
                   <span class="text-sm text-slate-600 w-10">{{ task.progress }}%</span>
                 </div>
+              </td>
+              <td class="px-4 py-3">
+                <span class="text-sm text-slate-600">{{ task.dueDate }}</span>
               </td>
               <td class="px-4 py-3">
                 <button
@@ -472,8 +496,32 @@ onMounted(() => {
         </div>
 
         <div class="space-y-4">
+          <!-- 시스템 선택 -->
           <div>
-            <label class="block text-sm font-medium text-slate-700 mb-1">업무명</label>
+            <label class="block text-sm font-medium text-slate-700 mb-1">시스템 <span class="text-red-500">*</span></label>
+            <div class="relative">
+              <select
+                v-model="newTask.systemId"
+                class="appearance-none w-full px-3 py-2 pr-10 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+              >
+                <option :value="undefined">시스템 선택</option>
+                <option v-for="system in adminStore.systems" :key="system.id" :value="system.id">
+                  {{ system.systemCode }} - {{ system.name }}
+                </option>
+              </select>
+              <ChevronDown class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+            </div>
+            <!-- 선택된 시스템 정보 표시 -->
+            <div v-if="selectedSystem" class="mt-2 p-2 bg-primary-50 border border-primary-200 rounded-lg">
+              <div class="flex items-center gap-2">
+                <span class="px-2 py-0.5 bg-slate-100 text-slate-700 text-xs font-mono rounded">{{ selectedSystem.systemCode }}</span>
+                <span class="text-sm font-medium text-primary-800">{{ selectedSystem.name }}</span>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">업무명 <span class="text-red-500">*</span></label>
             <input
               v-model="newTask.title"
               type="text"
@@ -482,45 +530,66 @@ onMounted(() => {
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-slate-700 mb-1">카테고리</label>
-            <select
-              v-model="newTask.category"
+            <label class="block text-sm font-medium text-slate-700 mb-1">요청자</label>
+            <input
+              v-model="newTask.requester"
+              type="text"
+              placeholder="요청자 이름"
               class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-            >
-              <option>개발</option>
-              <option>기획</option>
-              <option>디자인</option>
-              <option>문서</option>
-              <option>기타</option>
-            </select>
+            />
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">카테고리</label>
+            <div class="relative">
+              <select
+                v-model="newTask.category"
+                class="appearance-none w-full px-3 py-2 pr-10 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+              >
+                <option>원콜</option>
+                <option>원콜CI</option>
+                <option>데이터변경</option>
+              </select>
+              <ChevronDown class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+            </div>
           </div>
 
           <div>
             <label class="block text-sm font-medium text-slate-700 mb-1">우선순위</label>
             <div class="flex gap-4">
-              <label class="flex items-center gap-2">
-                <input type="radio" v-model="newTask.priority" value="high" />
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input type="radio" v-model="newTask.priority" value="high" class="text-primary-500" />
                 <span class="text-sm">높음</span>
               </label>
-              <label class="flex items-center gap-2">
-                <input type="radio" v-model="newTask.priority" value="medium" />
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input type="radio" v-model="newTask.priority" value="medium" class="text-primary-500" />
                 <span class="text-sm">보통</span>
               </label>
-              <label class="flex items-center gap-2">
-                <input type="radio" v-model="newTask.priority" value="low" />
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input type="radio" v-model="newTask.priority" value="low" class="text-primary-500" />
                 <span class="text-sm">낮음</span>
               </label>
             </div>
           </div>
 
-          <div>
-            <label class="block text-sm font-medium text-slate-700 mb-1">예상 소요시간 (시간)</label>
-            <input
-              v-model.number="newTask.estimatedHours"
-              type="number"
-              min="0"
-              class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-            />
+          <!-- 요청일 / 납기일 -->
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1">요청일</label>
+              <input
+                v-model="newTask.requestDate"
+                type="date"
+                class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+              />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1">납기일</label>
+              <input
+                v-model="newTask.dueDate"
+                type="date"
+                class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+              />
+            </div>
           </div>
 
           <div>

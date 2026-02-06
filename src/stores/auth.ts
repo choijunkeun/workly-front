@@ -42,10 +42,10 @@ export const useAuthStore = defineStore('auth', () => {
   // role은 관리자가 부여하는 것이므로 knoxId와 무관하게 DB에서 관리됨
   const mockUsers: Record<string, Member> = {
     // 임직원 (ITO 담당자) - 관리자 역할
-    'park.ito': {
+    'admin': {
       id: 7,
-      knoxId: 'park.ito',
-      name: '박담당',
+      knoxId: 'admin',
+      name: '관리자',
       type: 'employee',
       role: 'admin',
       systemIds: [1, 2]

@@ -86,8 +86,9 @@ const selectedTeamId = ref<number | null>(null)
 
 // 선택된 팀 초기화
 onMounted(() => {
-  if (availableTeams.value.length > 0 && !selectedTeamId.value) {
-    selectedTeamId.value = availableTeams.value[0].companyId
+  const firstTeam = availableTeams.value[0]
+  if (firstTeam && !selectedTeamId.value) {
+    selectedTeamId.value = firstTeam.companyId
   }
 })
 

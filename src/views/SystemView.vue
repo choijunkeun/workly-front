@@ -5,10 +5,10 @@ import { ChevronDown, Search, Star } from 'lucide-vue-next'
 
 // Mock 데이터 - 회사
 const companies = ref<Company[]>([
-  { id: 1, name: '비트맥스', createdAt: '2024-01-01' },
-  { id: 2, name: '에코', createdAt: '2024-01-15' },
-  { id: 3, name: '미라콤', createdAt: '2024-02-01' },
-  { id: 4, name: 'DRCTS', createdAt: '2024-02-15' }
+  { id: 1, code: 'BM', name: '비트맥스', createdAt: '2024-01-01' },
+  { id: 2, code: 'EC', name: '에코', createdAt: '2024-01-15' },
+  { id: 3, code: 'MR', name: '미라콤', createdAt: '2024-02-01' },
+  { id: 4, code: 'DR', name: 'DRCTS', createdAt: '2024-02-15' }
 ])
 
 // Mock 데이터 - 시스템 (각 시스템은 하나의 회사만 담당, CI담당자 1명)

@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useRoute } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
+const authStore = useAuthStore()
 const isHovered = ref(false)
 
 const menuItems = [
@@ -12,6 +14,14 @@ const menuItems = [
   { path: '/team-progress', name: '팀 현황', icon: 'team' },
   { path: '/systems', name: '시스템&담당자', icon: 'company' }
 ]
+
+const adminMenuItems = [
+  { path: '/admin/members', name: '회원 관리', icon: 'users' },
+  { path: '/admin/companies', name: '회사 관리', icon: 'building' },
+  { path: '/admin/systems', name: '시스템 관리', icon: 'cog' }
+]
+
+const isAdmin = computed(() => authStore.isAdmin)
 </script>
 
 <template>
@@ -63,6 +73,48 @@ const menuItems = [
           </router-link>
         </li>
       </ul>
+
+      <!-- 관리자 메뉴 -->
+      <template v-if="isAdmin">
+        <div class="my-4 mx-2 border-t border-slate-200/60"></div>
+        <div v-if="isHovered" class="px-3 mb-2">
+          <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">관리</span>
+        </div>
+        <ul class="space-y-1">
+          <li v-for="item in adminMenuItems" :key="item.path">
+            <router-link
+              :to="item.path"
+              class="flex items-center py-3 rounded-xl transition-all duration-200 whitespace-nowrap overflow-hidden"
+              :class="[
+                route.path === item.path || route.path.startsWith(item.path)
+                  ? 'bg-primary-500 text-white shadow-lg shadow-primary-500/30'
+                  : 'text-slate-600 hover:bg-slate-100',
+                isHovered ? 'px-3 gap-3' : 'justify-center'
+              ]"
+            >
+              <!-- 회원 관리 아이콘 -->
+              <svg v-if="item.icon === 'users'" class="w-6 h-6 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+              </svg>
+              <!-- 회사 관리 아이콘 -->
+              <svg v-if="item.icon === 'building'" class="w-6 h-6 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+              </svg>
+              <!-- 시스템 관리 아이콘 -->
+              <svg v-if="item.icon === 'cog'" class="w-6 h-6 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              <span
+                v-if="isHovered"
+                class="font-medium text-sm"
+              >
+                {{ item.name }}
+              </span>
+            </router-link>
+          </li>
+        </ul>
+      </template>
     </nav>
   </aside>
 </template>

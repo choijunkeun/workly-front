@@ -1,6 +1,7 @@
 // 사용자 타입
 export type MemberType = 'employee' | 'partner' // 임직원 | 협력직
 export type MemberRole = 'admin' | 'default' // 관리자 | 일반
+export type MemberStatus = 'PENDING' | 'ACTIVE' | 'DEACTIVATED' // 승인대기 | 활성 | 비활성
 
 export interface Member {
   id: number
@@ -12,11 +13,14 @@ export interface Member {
   isLeader?: boolean // 팀장 여부
   systemIds?: number[] // 담당 시스템 ID 목록
   avatar?: string
+  status?: MemberStatus // 회원 상태
+  createdAt?: string // 가입 일시
 }
 
 // 회사(협력사) 타입
 export interface Company {
   id: number
+  code: string // 회사 고유 코드
   name: string
   description?: string
   createdAt: string
@@ -29,6 +33,8 @@ export interface System {
   name: string
   companyId: number // 담당 협력사 ID
   description?: string
+  ciMemberId?: number // CI 담당자 (협력직)
+  itoMemberIds?: number[] // ITO 담당자들 (임직원)
 }
 
 // 회원가입 요청 타입
@@ -52,14 +58,16 @@ export type User = Member
 // 업무 타입
 export interface Task {
   id: number
+  systemId?: number // 담당 시스템
   title: string
   category: string
   priority: 'high' | 'medium' | 'low'
   status: 'pending' | 'in_progress' | 'completed' | 'on_hold'
   progress: number
-  dueDate: string
+  requester?: string // 요청자
+  requestDate?: string // 요청일
+  dueDate: string // 납기일
   description?: string
-  estimatedHours?: number
 }
 
 // 주간보고 타입
