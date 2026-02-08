@@ -7,18 +7,37 @@ const route = useRoute()
 const authStore = useAuthStore()
 const isHovered = ref(false)
 
-const menuItems = [
+// 협력직 메뉴
+const partnerMenuItems = [
   { path: '/', name: '대시보드', icon: 'dashboard' },
   { path: '/reports', name: '내 주간보고', icon: 'reports' },
   { path: '/my-progress', name: '내 진척도', icon: 'progress' },
+  { path: '/team-progress', name: '팀 현황', icon: 'team', leaderOnly: true },
+  { path: '/systems', name: '시스템&담당자', icon: 'company' }
+]
+
+// 임직원 메뉴
+const employeeMenuItems = [
   { path: '/team-progress', name: '팀 현황', icon: 'team' },
   { path: '/systems', name: '시스템&담당자', icon: 'company' }
 ]
 
+const menuItems = computed(() => {
+  if (authStore.isPartner) {
+    return partnerMenuItems.filter(item => {
+      if (item.leaderOnly) return authStore.isLeader
+      return true
+    })
+  }
+  // 임직원 (관리자 포함)
+  return employeeMenuItems
+})
+
 const adminMenuItems = [
   { path: '/admin/members', name: '회원 관리', icon: 'users' },
   { path: '/admin/companies', name: '회사 관리', icon: 'building' },
-  { path: '/admin/systems', name: '시스템 관리', icon: 'cog' }
+  { path: '/admin/systems', name: '시스템 관리', icon: 'cog' },
+  { path: '/admin/settings', name: '열람 설정', icon: 'clock' }
 ]
 
 const isAdmin = computed(() => authStore.isAdmin)
@@ -104,6 +123,10 @@ const isAdmin = computed(() => authStore.isAdmin)
               <svg v-if="item.icon === 'cog'" class="w-6 h-6 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              <!-- 열람 설정 아이콘 -->
+              <svg v-if="item.icon === 'clock'" class="w-6 h-6 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
               <span
                 v-if="isHovered"

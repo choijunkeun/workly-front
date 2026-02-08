@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { Member, SignupRequest, LoginRequest } from '@/types'
+import api from '@/api/axios'
 
 // 쿠키 유틸리티 함수
 function setCookie(name: string, value: string, days: number) {
@@ -35,105 +36,34 @@ export const useAuthStore = defineStore('auth', () => {
   const isPartner = computed(() => member.value?.type === 'partner')
   const isLeader = computed(() => member.value?.type === 'partner' && member.value?.isLeader === true)
 
-  // 팀 진척도 조회 가능 여부 (관리자 또는 팀 대표)
-  const canViewTeamProgress = computed(() => isAdmin.value || isLeader.value)
+  const isEmployee = computed(() => member.value?.type === 'employee')
 
-  // Mock 사용자 데이터 (실제로는 API에서 조회)
-  // role은 관리자가 부여하는 것이므로 knoxId와 무관하게 DB에서 관리됨
-  const mockUsers: Record<string, Member> = {
-    // 임직원 (ITO 담당자) - 관리자 역할
-    'admin': {
-      id: 7,
-      knoxId: 'admin',
-      name: '관리자',
-      type: 'employee',
-      role: 'admin',
-      systemIds: [1, 2]
-    },
-    // 임직원 (ITO 담당자) - 일반 역할
-    'lee.ito': {
-      id: 8,
-      knoxId: 'lee.ito',
-      name: '이담당',
-      type: 'employee',
-      role: 'default',
-      systemIds: [3]
-    },
-    // 협력직 - 비트맥스 팀 대표
-    'lee.mh': {
-      id: 1,
-      knoxId: 'lee.mh',
-      name: '이명환',
-      type: 'partner',
-      role: 'default',
-      companyId: 1,
-      isLeader: true,
-      systemIds: [1]
-    },
-    // 협력직 - 비트맥스 일반 CI담당자
-    'hong.gd': {
-      id: 2,
-      knoxId: 'hong.gd',
-      name: '홍길동',
-      type: 'partner',
-      role: 'default',
-      companyId: 1,
-      isLeader: false,
-      systemIds: [2]
-    },
-    // 협력직 - 에코 팀 대표
-    'kwon.hy': {
-      id: 3,
-      knoxId: 'kwon.hy',
-      name: '권혜영',
-      type: 'partner',
-      role: 'default',
-      companyId: 2,
-      isLeader: true,
-      systemIds: [3]
-    }
-  }
+  // 팀 진척도 조회 가능 여부 (관리자, 팀 대표, 임직원)
+  const canViewTeamProgress = computed(() => isAdmin.value || isLeader.value || isEmployee.value)
 
   async function login(request: LoginRequest) {
-    // TODO: API 연동
-    // const response = await axios.post('/api/auth/login', request)
+    const { data } = await api.post('/auth/login', request)
 
-    // Mock 사용자 조회 (실제로는 API 응답)
-    const mockMember = mockUsers[request.knoxId] || {
-      // 등록되지 않은 계정은 기본 일반 CI담당자로 처리
-      id: 999,
-      knoxId: request.knoxId,
-      name: request.knoxId,
-      type: 'partner' as const,
-      role: 'default' as const,
-      companyId: 1,
-      isLeader: false,
-      systemIds: []
-    }
-
-    // 임시 토큰 생성
-    const mockAccessToken = 'mock-access-token-' + Date.now()
-    const mockRefreshToken = 'mock-refresh-token-' + Date.now()
-
-    member.value = mockMember
-    accessToken.value = mockAccessToken
-    refreshToken.value = mockRefreshToken
+    member.value = data.member
+    accessToken.value = data.accessToken
+    refreshToken.value = data.refreshToken
 
     // accessToken은 localStorage에 저장
-    localStorage.setItem('accessToken', mockAccessToken)
-    localStorage.setItem('member', JSON.stringify(mockMember))
+    localStorage.setItem('accessToken', data.accessToken)
+    localStorage.setItem('member', JSON.stringify(data.member))
 
     // refreshToken은 쿠키에 저장 (7일)
-    setCookie('refreshToken', mockRefreshToken, 7)
+    setCookie('refreshToken', data.refreshToken, 7)
   }
 
   async function signup(request: SignupRequest) {
-    // TODO: API 연동
-    // const response = await axios.post('/api/auth/signup', request)
-
-    // 임시 회원가입 처리 (실제로는 서버에 저장)
-    // 관리자 승인 전까지 로그인 불가하므로 토큰/멤버 설정 안함
-    console.log('회원가입 요청:', request)
+    await api.post('/members', {
+      knoxId: request.knoxId,
+      name: request.name,
+      password: request.password,
+      type: request.type.toUpperCase(),
+      companyId: request.companyId ?? null
+    })
   }
 
   function logout() {
@@ -153,34 +83,29 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  // 토큰 갱신 함수 (추후 API 연동 시 사용)
+  // 토큰 갱신 함수
   async function refreshAccessToken() {
     if (!refreshToken.value) {
       logout()
       return false
     }
 
-    // TODO: API 연동
-    // const response = await axios.post('/api/auth/refresh', { refreshToken: refreshToken.value })
+    try {
+      const { data } = await api.post('/auth/refresh', { refreshToken: refreshToken.value })
 
-    // 임시 토큰 갱신
-    const newAccessToken = 'mock-access-token-' + Date.now()
-    accessToken.value = newAccessToken
-    localStorage.setItem('accessToken', newAccessToken)
+      accessToken.value = data.accessToken
+      localStorage.setItem('accessToken', data.accessToken)
 
-    return true
+      return true
+    } catch {
+      logout()
+      return false
+    }
   }
 
   // 비밀번호 변경 함수
-  async function changePassword(_currentPassword: string, _newPassword: string) {
-    // TODO: API 연동
-    // const response = await axios.post('/api/auth/change-password', {
-    //   currentPassword: _currentPassword,
-    //   newPassword: _newPassword
-    // })
-
-    // 임시 비밀번호 변경 처리
-    console.log('비밀번호 변경 요청')
+  async function changePassword(currentPassword: string, newPassword: string) {
+    await api.post('/auth/change-password', { currentPassword, newPassword })
   }
 
   // 하위 호환성을 위한 별칭
@@ -197,6 +122,7 @@ export const useAuthStore = defineStore('auth', () => {
     isAuthenticated,
     isAdmin,
     isPartner,
+    isEmployee,
     isLeader,
     canViewTeamProgress,
     login,

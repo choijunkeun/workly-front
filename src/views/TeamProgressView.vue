@@ -1,96 +1,78 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { ShieldAlert } from 'lucide-vue-next'
+import { fetchTeamProgress, type TeamData, type FetchTeamProgressDenied } from '@/api/teamProgress'
+import { ShieldAlert, Clock, Lock, Loader2 } from 'lucide-vue-next'
 
 const router = useRouter()
 const authStore = useAuthStore()
 
-// 접근 권한 체크 (관리자 또는 팀 대표만)
+// 접근 권한 체크 (관리자, 팀 대표, 임직원)
 const hasAccess = computed(() => authStore.canViewTeamProgress)
+
+// API 응답 상태
+const isLoading = ref(true)
+const isRestricted = ref(false)
+const restrictedInfo = ref<FetchTeamProgressDenied | null>(null)
+const allTeamsData = ref<TeamData[]>([])
+
+let timer: ReturnType<typeof setInterval> | null = null
+
+async function loadTeamData() {
+  if (!authStore.member) return
+
+  try {
+    const response = await fetchTeamProgress()
+
+    if (response.allowed) {
+      isRestricted.value = false
+      restrictedInfo.value = null
+      allTeamsData.value = response.teams
+      // 첫 로드 시 팀 선택 초기화
+      if (!selectedTeamId.value && response.teams.length > 0) {
+        selectedTeamId.value = response.teams[0].companyId
+      }
+    } else {
+      isRestricted.value = true
+      restrictedInfo.value = response
+      allTeamsData.value = []
+    }
+  } finally {
+    isLoading.value = false
+  }
+}
 
 onMounted(() => {
   if (!hasAccess.value) {
-    // 권한 없으면 대시보드로 리다이렉트
     router.replace('/')
+    return
   }
+  loadTeamData()
+  // 주기적으로 서버에 재확인 (열람 시간 진입/종료 감지)
+  timer = setInterval(loadTeamData, 30000)
+})
+
+onUnmounted(() => {
+  if (timer) clearInterval(timer)
+})
+
+// 잠금 화면에 표시할 다음 열람 시간 텍스트
+const nextViewingText = computed(() => {
+  if (!restrictedInfo.value) return ''
+  const nv = restrictedInfo.value.nextViewing
+  const date = new Date(nv.date + 'T00:00:00')
+  const dayNames = ['일', '월', '화', '수', '목', '금', '토']
+  const month = date.getMonth() + 1
+  const day = date.getDate()
+  const dayOfWeek = dayNames[date.getDay()]
+  return `${month}월 ${day}일 (${dayOfWeek}) ${nv.startTime} ~ ${nv.endTime}`
 })
 
 const selectedWeek = ref('2024.02 1주')
 
-// Mock 데이터 - 팀별 정보 (companyId로 구분)
-const allTeamsData = ref([
-  {
-    companyId: 1,
-    name: '비트맥스',
-    progress: { total: 72, target: 70, previousWeek: 65 },
-    members: [
-      { id: 1, name: '이명환', progress: 85, isLeader: true },
-      { id: 2, name: '홍길동', progress: 60, isLeader: false }
-    ],
-    tasks: [
-      { id: 1, assignee: '이명환', title: 'ERP 시스템 유지보수', status: 'completed', progress: 100, priority: 'high' },
-      { id: 2, assignee: '홍길동', title: 'MES 시스템 모듈 개발', status: 'in_progress', progress: 60, priority: 'high' }
-    ]
-  },
-  {
-    companyId: 2,
-    name: '에코',
-    progress: { total: 78, target: 75, previousWeek: 70 },
-    members: [
-      { id: 3, name: '권혜영', progress: 78, isLeader: true }
-    ],
-    tasks: [
-      { id: 3, assignee: '권혜영', title: 'WMS 시스템 개선', status: 'in_progress', progress: 78, priority: 'medium' }
-    ]
-  },
-  {
-    companyId: 3,
-    name: '미라콤',
-    progress: { total: 65, target: 70, previousWeek: 60 },
-    members: [
-      { id: 4, name: '김민석', progress: 70, isLeader: true },
-      { id: 5, name: '김제동', progress: 60, isLeader: false }
-    ],
-    tasks: [
-      { id: 4, assignee: '김민석', title: 'SCM 시스템 연동', status: 'in_progress', progress: 70, priority: 'high' },
-      { id: 5, assignee: '김제동', title: 'PLM 시스템 테스트', status: 'pending', progress: 30, priority: 'medium' }
-    ]
-  },
-  {
-    companyId: 4,
-    name: 'DRCTS',
-    progress: { total: 92, target: 80, previousWeek: 85 },
-    members: [
-      { id: 6, name: '한석규', progress: 92, isLeader: true }
-    ],
-    tasks: [
-      { id: 6, assignee: '한석규', title: 'BI 시스템 대시보드 구축', status: 'completed', progress: 100, priority: 'high' }
-    ]
-  }
-])
-
-// 조회 가능한 팀 목록 (관리자: 전체, 팀 대표: 본인 팀만)
-const availableTeams = computed(() => {
-  if (authStore.isAdmin) {
-    return allTeamsData.value
-  } else if (authStore.isLeader && authStore.member?.companyId) {
-    return allTeamsData.value.filter(t => t.companyId === authStore.member?.companyId)
-  }
-  return []
-})
-
 // 선택된 팀 (기본: 첫 번째 팀)
 const selectedTeamId = ref<number | null>(null)
-
-// 선택된 팀 초기화
-onMounted(() => {
-  const firstTeam = availableTeams.value[0]
-  if (firstTeam && !selectedTeamId.value) {
-    selectedTeamId.value = firstTeam.companyId
-  }
-})
 
 // 현재 선택된 팀 데이터
 const currentTeam = computed(() => {
@@ -132,6 +114,14 @@ function getProgressDiff(current: number, compare: number) {
 function getProgressDiffClass(current: number, compare: number) {
   return current >= compare ? 'text-green-600' : 'text-red-600'
 }
+
+// 헤더 설명 텍스트
+const headerDescription = computed(() => {
+  if (authStore.isAdmin || authStore.isEmployee) {
+    return '전체 팀의 업무 현황을 조회합니다'
+  }
+  return '우리 팀의 업무 현황을 조회합니다'
+})
 </script>
 
 <template>
@@ -143,24 +133,50 @@ function getProgressDiffClass(current: number, compare: number) {
       <p class="text-sm text-slate-400">팀 대표 또는 관리자만 조회할 수 있습니다</p>
     </div>
 
+    <!-- 로딩 -->
+    <div v-else-if="isLoading" class="flex items-center justify-center py-20">
+      <Loader2 class="w-8 h-8 text-primary-500 animate-spin" />
+    </div>
+
+    <!-- 임직원 시간 제한 잠금 화면 (서버가 거부한 경우) -->
+    <div v-else-if="isRestricted && restrictedInfo" class="flex flex-col items-center justify-center py-20">
+      <div class="bg-white rounded-2xl shadow-lg border border-slate-200 p-12 text-center max-w-md">
+        <div class="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-6">
+          <Lock class="w-10 h-10 text-slate-400" />
+        </div>
+        <h3 class="text-xl font-semibold text-slate-800 mb-3">열람 시간이 아닙니다</h3>
+        <p class="text-sm text-slate-500 mb-6">
+          팀 현황은 지정된 미팅 시간에만 열람할 수 있습니다.
+        </p>
+        <div class="bg-primary-50 rounded-xl p-4">
+          <div class="flex items-center justify-center gap-2 mb-2">
+            <Clock class="w-4 h-4 text-primary-600" />
+            <span class="text-sm font-medium text-primary-700">다음 열람 가능 시간</span>
+          </div>
+          <p class="text-lg font-semibold text-primary-800">{{ nextViewingText }}</p>
+        </div>
+        <p class="text-xs text-slate-400 mt-4">
+          현재 기본 설정: {{ restrictedInfo.scheduleSummary }}
+        </p>
+      </div>
+    </div>
+
     <!-- 메인 콘텐츠 -->
     <template v-else>
       <!-- 헤더 -->
       <div class="flex items-center justify-between mb-6">
         <div>
           <h2 class="text-2xl font-bold text-slate-800">팀 업무 현황</h2>
-          <p class="text-sm text-slate-500 mt-1">
-            {{ authStore.isAdmin ? '전체 팀의 업무 현황을 조회합니다' : '우리 팀의 업무 현황을 조회합니다' }}
-          </p>
+          <p class="text-sm text-slate-500 mt-1">{{ headerDescription }}</p>
         </div>
         <div class="flex gap-3">
-          <!-- 팀 선택 (관리자만 여러 팀 선택 가능) -->
+          <!-- 팀 선택 -->
           <select
             v-model="selectedTeamId"
             class="px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-            :disabled="availableTeams.length <= 1"
+            :disabled="allTeamsData.length <= 1"
           >
-            <option v-for="team in availableTeams" :key="team.companyId" :value="team.companyId">
+            <option v-for="team in allTeamsData" :key="team.companyId" :value="team.companyId">
               {{ team.name }}
             </option>
           </select>

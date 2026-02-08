@@ -32,7 +32,12 @@ async function handleLogin() {
 
   try {
     await authStore.login({ knoxId: knoxId.value, password: password.value })
-    router.push('/')
+    // 임직원은 팀 현황으로, 협력직은 대시보드로 이동
+    if (authStore.member?.type === 'employee') {
+      router.push('/team-progress')
+    } else {
+      router.push('/')
+    }
   } catch (e) {
     error.value = '로그인에 실패했습니다.'
   } finally {
@@ -58,7 +63,7 @@ async function handleLogin() {
           <CheckCircle class="w-8 h-8 text-white" />
         </div>
         <h2 class="text-4xl font-bold text-white mb-4 text-center">
-          주간업무 관리
+          Workly
         </h2>
         <p class="text-lg text-white/70 text-center max-w-md leading-relaxed">
           팀의 주간 업무를 체계적으로 관리하고<br/>

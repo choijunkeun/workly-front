@@ -92,7 +92,7 @@ async function handleChangePassword() {
           </svg>
         </div>
         <h1 class="text-lg font-bold bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent">
-          주간업무 관리
+          Workly
         </h1>
       </div>
 
